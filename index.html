@@ -2500,19 +2500,35 @@
 
     <script>
     
-    // ПРИНУДИТЕЛЬНОЕ ОБНОВЛЕНИЕ ПРОФИЛЯ ПОСЛЕ ЗАГРУЗКИ
-setTimeout(() => {
-    const u = window.Telegram?.WebApp?.initDataUnsafe?.user;
-    if (u) {
-        const nameEl = document.getElementById('profileNameNew');
-        const usernameEl = document.getElementById('profileUsernameNew');
-        const imgEl = document.querySelector('#profileScreen .profile-avatar-new img');
+    // ЖЕСТКИЙ ПЕРЕХВАТ ПРОФИЛЯ
+window.addEventListener('load', () => {
+    setTimeout(() => {
+        const tg = window.Telegram?.WebApp;
+        if (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) {
+            const u = tg.initDataUnsafe.user;
+            
+            // Меняем имя
+            const nameEl = document.getElementById('profileNameNew');
+            if (nameEl) nameEl.textContent = u.first_name || 'Игрок';
 
-        if (nameEl) nameEl.textContent = u.first_name || 'Игрок';
-        if (usernameEl) usernameEl.innerHTML = `@${u.username} ${renderTag(currentUser.tag)}`;
-        if (imgEl && u.photo_url) imgEl.src = u.photo_url;
-    }
-}, 2500);
+            // Меняем ник
+            const usernameEl = document.getElementById('profileUsernameNew');
+            if (usernameEl) {
+                usernameEl.innerHTML = `@${u.username || 'игрок'} <span class="user-tag tag-owner">Владелец</span>`;
+            }
+
+            // Меняем аву
+            const imgEl = document.querySelector('#profileScreen .profile-avatar-new img');
+            if (imgEl && u.photo_url) {
+                imgEl.src = u.photo_url;
+            }
+
+            // Убираем "Балбес" из ID, если он там захардкожен
+            const metaId = document.querySelector('.profile-meta-row span');
+            if (metaId) metaId.innerHTML = `<i class="fa-solid fa-hashtag"></i> ID: ${u.id}`;
+        }
+    }, 1000); // Ждем 1 секунду, чтобы игра загрузилась
+});
     
     // ====== РЕЖИМ ТЕСТА ======
     // null — без симуляции (реальный Telegram, если открыто в TG)
