@@ -5741,16 +5741,30 @@ if (!row) {
     if (!row) return;
 
     // 4. Записываем локально
-    me.id = row.id;
-    me.username = row.username || me.username;
-    me.avatarUrl = row.avatar_url || null;
-    balance = row.balance ?? 0;
-    userCrystals = row.user_crystals ?? 0;
-    currentUser.tag = row.tag || null; // Берем тег из базы, а не из хардкода
-    mainUsername = row.main_uz || null;
-    secondUsername = row.second_uz || null;
+me.id = row.id;
+// Берем данные из Telegram, если они есть, иначе из базы
+me.username = tgUsername || row.username || '@игрок'; 
+me.avatarUrl = tgAvatar || row.avatar_url || null;
+balance = row.balance ?? 0;
+userCrystals = row.user_crystals ?? 0;
+currentUser.tag = row.tag || null;
+currentUser.name = tgFirstName || row.name || 'Игрок';
+mainUsername = row.main_uz || null;
+secondUsername = row.second_uz || null;
 
-    applyProfileIdentity(row);
+// ПРИНУДИТЕЛЬНО СТАВИМ АВУ И НИК
+const img = document.querySelector('#profileScreen .profile-avatar-new img');
+if (img) {
+    img.src = tgAvatar || 'https://i.pravatar.cc/150?img=11';
+}
+const nameEl = document.getElementById('profileNameNew');
+if (nameEl) {
+    nameEl.textContent = currentUser.name;
+}
+const usernameEl = document.getElementById('profileUsernameNew');
+if (usernameEl) {
+    usernameEl.innerHTML = `${me.username} ${renderTag(row.tag)}`;
+}
 
     updateBalance();
     updateAdminVisibility();
