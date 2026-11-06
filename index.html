@@ -2583,22 +2583,20 @@ window.addEventListener('load', () => {
     const img = document.querySelector('#profileScreen .profile-avatar-new img');
     const nameEl = document.getElementById('profileNameNew');
     const usernameEl = document.getElementById('profileUsernameNew');
-    const isOwner = (row.tag === 'owner');
 
-    // Фото
+    // 1. АВА (если в базе есть - ставим, если нет - заглушка)
     if (img) {
         img.src = row.avatar_url ? row.avatar_url : 'https://i.pravatar.cc/150?img=11';
     }
     
-    // Имя
+    // 2. ИМЯ
     if (nameEl) {
         nameEl.textContent = row.name || 'Игрок';
     }
     
-    // НИК (Всегда ставим реальный ник из базы, даже если ты Владелец)
+    // 3. НИК И ТЕГ
     if (usernameEl) {
-        const nick = row.username || '@игрок';
-        usernameEl.innerHTML = `${nick} ${renderTag(row.tag)}`;
+        usernameEl.innerHTML = `${row.username || '@игрок'} ${renderTag(row.tag)}`;
     }
 }
     
