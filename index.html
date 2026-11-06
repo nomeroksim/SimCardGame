@@ -5692,77 +5692,45 @@ async function initPlayerInDB() {
     const me = allPlayers.find(p => p.isMe);
     if (!me) return;
 
-    // === Telegram данные (или тестовые) ===
+    // === Данные из Telegram ===
     const tgId = tgUser?.id || null;
     const tgUsername = tgUser?.username ? '@' + tgUser.username : null;
     const tgAvatar = getTelegramAvatar();
     const tgFirstName = tgUser?.first_name || null;
 
-    const isOwner = (me.tag === 'owner');
-
-    // 1. Ищем по telegram_id, потом по username
+    // 1. Ищем игрока по telegram_id (приоритет)
     let row = null;
-
     if (tgId) {
-        const { data } = await _supabase
-            .from('players')
-            .select('*')
-            .eq('telegram_id', tgId)
-            .maybeSingle();
+        const { data } = await _supabase.from('players').select('*').eq('telegram_id', tgId).maybeSingle();
         row = data;
     }
 
-    if (!row && me.username) {
-        const { data } = await _supabase
-            .from('players')
-            .select('*')
-            .eq('username', me.username)
-            .maybeSingle();
-        row = data;
-    }
-
-    // 2. Создаём если не нашли
+    // 2. Если не нашли — создаём нового
     if (!row) {
-        const insertData = isOwner
-            ? {
-                username: '@Владелец',
-                name: 'Балбес',
-                balance: balance,
-                tag: 'owner',
-                user_crystals: 1500,
-                telegram_id: tgId
-            }
-            : {
-                username: tgUsername || me.username,
-                name: tgFirstName || me.name,
-                balance: balance,
-                tag: me.tag || null,
-                user_crystals: 1500,
-                telegram_id: tgId,
-                avatar_url: tgAvatar
-            };
+        const isHardcodedOwner = me.tag === 'owner'; // Проверяем, владелец ли это по коду
+        
+        const insertData = {
+            username: tgUsername || me.username,
+            name: tgFirstName || me.name,
+            balance: balance,
+            // Если зашел реальный владелец (у него в коде tag='owner'), даем ему owner. Иначе — без тега.
+            tag: isHardcodedOwner ? 'owner' : null,
+            user_crystals: 1500,
+            telegram_id: tgId,
+            avatar_url: tgAvatar
+        };
 
-        const { data: created, error } = await _supabase
-            .from('players')
-            .insert([insertData])
-            .select()
-            .single();
-        if (error) { console.error('insert player', error); return; }
+        const { data: created, error } = await _supabase.from('players').insert([insertData]).select().single();
+        if (error) { console.error('insert player error:', error); return; }
         row = created;
     } else {
-        // 3. Обновляем данные для существующего
+        // 3. Если нашли — обновляем данные
         const patch = {};
         if (tgId && row.telegram_id !== tgId) patch.telegram_id = tgId;
-
-        // Если это не владелец — сохраняем реальные данные из ТГ
-if (!isOwner) {
-    if (tgUsername && row.username !== tgUsername) patch.username = tgUsername;
-    if (tgAvatar && row.avatar_url !== tgAvatar) patch.avatar_url = tgAvatar;
-} else {
-    // Владельца оставляем как есть (снеговик и @Владелец)
-    if (row.username !== '@Владелец') patch.username = '@Владелец';
-    patch.avatar_url = null;
-}
+        
+        // Всегда подтягиваем реальный ник и фото из Telegram
+        if (tgUsername && row.username !== tgUsername) patch.username = tgUsername;
+        if (tgAvatar && row.avatar_url !== tgAvatar) patch.avatar_url = tgAvatar;
 
         if (Object.keys(patch).length > 0) {
             await _supabase.from('players').update(patch).eq('id', row.id);
@@ -5778,7 +5746,7 @@ if (!isOwner) {
     me.avatarUrl = row.avatar_url || null;
     balance = row.balance ?? 0;
     userCrystals = row.user_crystals ?? 0;
-    currentUser.tag = row.tag || null;
+    currentUser.tag = row.tag || null; // Берем тег из базы, а не из хардкода
     mainUsername = row.main_uz || null;
     secondUsername = row.second_uz || null;
 
@@ -5788,7 +5756,7 @@ if (!isOwner) {
     updateAdminVisibility();
     updateProfileUI();
 
-    // 5. Загружаем данные
+    // 5. Загружаем остальное
     await loadNumbersFromDB();
     await loadUsernamesFromDB();
     await loadPromoCodesFromDB();
