@@ -5871,12 +5871,6 @@ async function loadMarketLotsFromDB() {
         number_id: l.number_id
     }));
 }
-
-setTimeout(() => {
-    const u = window.Telegram?.WebApp?.initDataUnsafe?.user;
-    alert('Telegram user: ' + JSON.stringify(u));
-}, 2000);
-
         // ====== ИНИЦИАЛИЗАЦИЯ ======
         initTelegram();
         initPlayerInDB();
