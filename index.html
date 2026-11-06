@@ -1877,9 +1877,7 @@
 <!-- ЕДИНАЯ СТРОКА ДЛЯ ЮЗОВ -->
 <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px;">
     <!-- Основной ник -->
-    <div class="profile-username-new" id="profileUsernameNew" style="display: flex; align-items: center; gap: 8px; margin-bottom: 0;">
-    @Владелец
-</div>
+    <div class="profile-username-new" id="profileUsernameNew" style="display: flex; align-items: center; gap: 8px; margin-bottom: 0;"></div>
     
     <!-- Контейнер для остальных юзов (включая основной юз, если выбран) -->
     <div id="profileUzBlock" style="display: none; display: flex; align-items: center; gap: 8px;">
@@ -2557,24 +2555,23 @@
     const usernameEl = document.getElementById('profileUsernameNew');
     const isOwner = (row.tag === 'owner');
 
-    // Фото: если не владелец и есть фото из ТГ — ставим его
     if (img) {
         img.src = (!isOwner && row.avatar_url) 
             ? row.avatar_url 
             : 'https://i.pravatar.cc/150?img=11';
     }
     
-    // Имя: если не владелец — ставим имя из ТГ
     if (nameEl) {
         nameEl.textContent = isOwner ? 'Владелец' : (row.name || 'Игрок');
     }
     
-    // Ник: если не владелец — ставим реальный @ник из ТГ
     if (usernameEl) {
         if (isOwner) {
             usernameEl.innerHTML = `@Владелец ${renderTag('owner')}`;
-        } else if (row.username) {
-            usernameEl.innerHTML = `${row.username} ${renderTag(row.tag)}`;
+        } else {
+            // Если ника нет в базе, показываем заглушку, но НЕ "Владелец"
+            const nick = row.username || '@игрок';
+            usernameEl.innerHTML = `${nick} ${renderTag(row.tag)}`;
         }
     }
 }
