@@ -4377,13 +4377,12 @@ const results = [];
         }
     }
 
-    // === 1. ИМЯ И НИК ===
-// Ник и фото ставит applyProfileIdentity() из initPlayerInDB.
-// Здесь только имя, если оно ещё пустое.
-const nameEl = document.getElementById('profileNameNew');
-if (nameEl && !nameEl.textContent.trim()) {
-    nameEl.textContent = currentUser.name;
-}
+    // ЖЕСТКАЯ УСТАНОВКА НИКА И ТЕГА ПРИ КАЖДОМ ОБНОВЛЕНИИ
+    const usernameEl = document.getElementById('profileUsernameNew');
+    if (usernameEl && currentUser.name) {
+        // Если мы знаем твой ник, всегда его и показываем
+        usernameEl.innerHTML = `${currentUser.name} ${renderTag(currentUser.tag)}`;
+    }
 
     // === 2. ВЫВОД ОСТАЛЬНЫХ ЮЗОВ В ТУ ЖЕ СТРОКУ ===
     const uzBlock = document.getElementById('profileUzBlock');
@@ -4413,7 +4412,7 @@ if (nameEl && !nameEl.textContent.trim()) {
             secondBox.style.display = 'none';
         }
     }
-} 
+}
 
     
 function copyMainNumber() {
