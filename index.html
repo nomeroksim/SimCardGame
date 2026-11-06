@@ -2609,12 +2609,10 @@ async function saveBalanceToDB() {
         let luckTimerInterval = null;
         let x5Armed = false;
 
-        let allPlayers = [
-    { id: 1, name: 'Владелец', username: '@Владелец', tag: 'owner', level: 48, createdAt: '8 октября 2024', balance: 47367, numbers: [], bestRarity: 'secret', bestNumber: '0', bestNumberPrice: 3170000, rounds: 182216, isMe: true, mainUz: null, secondUz: null }
-];
+        let allPlayers = [];
     
         
-        let currentUser = { name: 'Балбес', tag: 'owner' };
+        let currentUser = { name: '', tag: null };
         let allPromoCodes = [];
         let usedPromoCodes = [];
         
@@ -5706,19 +5704,16 @@ async function initPlayerInDB() {
     }
 
     // 2. Если не нашли — создаём нового
-    if (!row) {
-        const isHardcodedOwner = me.tag === 'owner'; // Проверяем, владелец ли это по коду
-        
-        const insertData = {
-            username: tgUsername || me.username,
-            name: tgFirstName || me.name,
-            balance: balance,
-            // Если зашел реальный владелец (у него в коде tag='owner'), даем ему owner. Иначе — без тега.
-            tag: isHardcodedOwner ? 'owner' : null,
-            user_crystals: 1500,
-            telegram_id: tgId,
-            avatar_url: tgAvatar
-        };
+if (!row) {
+    const insertData = {
+        username: tgUsername || 'Игрок',
+        name: tgFirstName || 'Без имени',
+        balance: balance,
+        tag: null, // Теперь все новые игроки заходят без тега
+        user_crystals: 1500,
+        telegram_id: tgId,
+        avatar_url: tgAvatar
+    };
 
         const { data: created, error } = await _supabase.from('players').insert([insertData]).select().single();
         if (error) { console.error('insert player error:', error); return; }
