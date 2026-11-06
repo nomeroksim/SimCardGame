@@ -5726,7 +5726,11 @@ async function initPlayerInDB() {
             .select()
             .single();
 
-        if (error) { console.error('insert player:', error); return; }
+        if (error) { 
+    alert("Ошибка базы: " + error.message); 
+    console.error('insert player:', error); 
+    return; 
+}
 
         me = { ...created, isMe: true };
         allPlayers.push(me);
