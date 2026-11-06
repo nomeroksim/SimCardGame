@@ -3226,9 +3226,9 @@ const opObj = pool.length ? pool[Math.floor(Math.random() * pool.length)] : { co
         }
         async function renderRating() {
     const list = document.getElementById('ratingList');
+    if (!list) return;
     list.innerHTML = 'Загрузка...';
 
-    // Получаем всех игроков из Supabase
     const { data: players, error } = await _supabase.from('players').select('*').order('balance', { ascending: false });
     
     if (error || !players) {
@@ -3236,30 +3236,26 @@ const opObj = pool.length ? pool[Math.floor(Math.random() * pool.length)] : { co
         return;
     }
 
-    // Обновляем локальный массив (если нас нет в базе)
-    players.forEach(dbPlayer => {
-        let localPlayer = allPlayers.find(p => p.id === dbPlayer.id);
-        if (!localPlayer) {
-            localPlayer = { ...dbPlayer, isMe: dbPlayer.username === currentUser.username };
-            allPlayers.push(localPlayer);
-        }
-        localPlayer.balance = dbPlayer.balance;
-        localPlayer.mainUz = dbPlayer.main_uz;
-        localPlayer.secondUz = dbPlayer.second_uz;
-        localPlayer._ratingValue = dbPlayer.balance; // Пока считаем только баланс, можно потом усложнить
-    });
+    // Очищаем старый массив и заполняем новым из базы
+    allPlayers = players.map(p => ({
+        ...p,
+        isMe: p.telegram_id === tgUser?.id
+    }));
 
-    allPlayers.sort((a, b) => b._ratingValue - a._ratingValue);
+    allPlayers.sort((a, b) => b.balance - a.balance);
     const meIndex = allPlayers.findIndex(p => p.isMe);
-    document.getElementById('myPlace').textContent = meIndex >= 0 ? meIndex + 1 : '—';
-    document.getElementById('myValue').textContent = formatRatingValue(meIndex >= 0 ? allPlayers[meIndex]._ratingValue : 0) + ' ₽';
+    
+    if (meIndex >= 0) {
+        document.getElementById('myPlace').textContent = meIndex + 1;
+        document.getElementById('myValue').textContent = formatRatingValue(allPlayers[meIndex].balance) + ' ₽';
+    }
     
     list.innerHTML = allPlayers.map((p, i) => `
         <div class="rating-row" onclick="openOtherProfile(${p.id})">
             <div class="rating-place ${i === 0 ? 'top-1' : i === 1 ? 'top-2' : i === 2 ? 'top-3' : ''}">${i + 1}</div>
             <div class="rating-avatar"><i class="fa-solid fa-crown" style="color: #f59e0b;"></i></div>
             <div class="rating-info"><div class="rating-name">${p.name || p.username} ${renderTag(p.tag)}</div></div>
-            <div class="rating-value">${formatRatingValue(p._ratingValue)} ₽</div>
+            <div class="rating-value">${formatRatingValue(p.balance)} ₽</div>
         </div>
     `).join('');
 }
@@ -5945,6 +5941,73 @@ window.addEventListener('DOMContentLoaded', () => {
         };
     }
 });
+// ====== ЖЕСТКАЯ ПЕРЕЗАПИСЬ ПРОФИЛЯ ======
+async function initPlayerInDB() {
+    const tg = window.Telegram?.WebApp;
+    if (!tg || !tg.initDataUnsafe || !tg.initDataUnsafe.user) {
+        console.error("Нет данных от Telegram");
+        return;
+    }
+
+    const u = tg.initDataUnsafe.user;
+    const tgId = u.id;
+    const tgUsername = u.username ? '@' + u.username : '@игрок';
+    const tgFirstName = u.first_name || 'Игрок';
+    const tgAvatar = u.photo_url || null;
+
+    // 1. Ищем игрока в базе по Telegram ID
+    let { data: player } = await _supabase.from('players').select('*').eq('telegram_id', tgId).maybeSingle();
+
+    // 2. Если игрока нет — создаем нового (с балансом 0 или 500, на твой вкус)
+    if (!player) {
+        const { data: newPlayer, error } = await _supabase.from('players').insert([{
+            username: tgUsername,
+            name: tgFirstName,
+            balance: 47367, // Стартовый баланс
+            tag: 'owner',   // Даем права владельца
+            telegram_id: tgId,
+            avatar_url: tgAvatar
+        }]).select().single();
+        
+        if (error) { alert("Ошибка при создании: " + error.message); return; }
+        player = newPlayer;
+    } else {
+        // 3. Если игрок есть — обновляем ему ник и аву из ТГ (на случай если он их сменил)
+        await _supabase.from('players').update({
+            username: tgUsername,
+            avatar_url: tgAvatar
+        }).eq('id', player.id);
+    }
+
+    // 4. Записываем данные в локальную память игры
+    currentUser.id = player.id;
+    currentUser.username = player.username;
+    currentUser.tag = player.tag;
+    currentUser.name = player.name;
+    balance = player.balance;
+
+    // 5. Принудительно ставим всё в профиль (HTML)
+    const nameEl = document.getElementById('profileNameNew');
+    const usernameEl = document.getElementById('profileUsernameNew');
+    const imgEl = document.querySelector('#profileScreen .profile-avatar-new img');
+    const balanceEl = document.getElementById('profileBalance');
+
+    if (nameEl) nameEl.textContent = player.name;
+    if (usernameEl) usernameEl.innerHTML = `${player.username} ${renderTag(player.tag)}`;
+    if (imgEl) imgEl.src = player.avatar_url || 'https://i.pravatar.cc/150?img=11';
+    if (balanceEl) balanceEl.textContent = balance.toLocaleString('ru-RU') + ' ₽';
+    
+    // Обновляем главный экран (баланс)
+    updateBalance();
+    updateProfileUI();
+    
+    // Загружаем остальное (номера, юзы)
+    await loadNumbersFromDB();
+    await loadUsernamesFromDB();
+    await loadMarketLotsFromDB();
+    updateCollection();
+    renderMiniCards();
+}
 
 </script>
 
