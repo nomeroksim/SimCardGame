@@ -727,6 +727,10 @@
 }
 .profile-username-new {
     font-size: 14px; color: #3b82f6; margin-bottom: 4px; font-weight: 600;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
 }
 .profile-meta-row {
     display: flex; align-items: center; gap: 12px;
@@ -2547,27 +2551,33 @@
     }
 
     function applyProfileIdentity(row) {
-        const img = document.querySelector('#profileScreen .profile-avatar-new img');
-        const nameEl = document.getElementById('profileNameNew');
-        const usernameEl = document.getElementById('profileUsernameNew');
-        const isOwner = (row.tag === 'owner');
+    const img = document.querySelector('#profileScreen .profile-avatar-new img');
+    const nameEl = document.getElementById('profileNameNew');
+    const usernameEl = document.getElementById('profileUsernameNew');
+    const isOwner = (row.tag === 'owner');
 
-        if (img) {
-            img.src = (!isOwner && row.avatar_url)
-                ? row.avatar_url
-                : 'https://i.pravatar.cc/150?img=11';
-        }
-        if (nameEl && row.name) {
-            nameEl.textContent = isOwner ? 'Владелец' : row.name;
-        }
-        if (usernameEl) {
-            if (isOwner) {
-                usernameEl.innerHTML = `@Владелец`;
-            } else if (row.username) {
-                usernameEl.innerHTML = `${row.username} ${renderTag(currentUser.tag)}`;
-            }
+    // Фото: если не владелец и есть фото из ТГ — ставим его
+    if (img) {
+        img.src = (!isOwner && row.avatar_url) 
+            ? row.avatar_url 
+            : 'https://i.pravatar.cc/150?img=11';
+    }
+    
+    // Имя: если не владелец — ставим имя из ТГ
+    if (nameEl) {
+        nameEl.textContent = isOwner ? 'Владелец' : (row.name || 'Игрок');
+    }
+    
+    // Ник: если не владелец — ставим реальный @ник из ТГ
+    if (usernameEl) {
+        if (isOwner) {
+            usernameEl.innerHTML = `@Владелец ${renderTag('owner')}`;
+        } else if (row.username) {
+            usernameEl.innerHTML = `${row.username} ${renderTag(row.tag)}`;
         }
     }
+}
+    
     // ====== /TELEGRAM WEBAPP ======
     
     // ====== ПОДКЛЮЧЕНИЕ К SUPABASE ======
@@ -5744,16 +5754,15 @@ async function initPlayerInDB() {
         const patch = {};
         if (tgId && row.telegram_id !== tgId) patch.telegram_id = tgId;
 
-        const rowIsOwner = (row.tag === 'owner') || isOwner;
-
-        if (!rowIsOwner) {
-            if (tgUsername && row.username !== tgUsername) patch.username = tgUsername;
-            if (tgAvatar && row.avatar_url !== tgAvatar) patch.avatar_url = tgAvatar;
-        } else {
-            // Принудительно фиксируем владельца
-            if (row.username !== '@Владелец') patch.username = '@Владелец';
-            patch.avatar_url = null;
-        }
+        // Если это не владелец — сохраняем реальные данные из ТГ
+if (!isOwner) {
+    if (tgUsername && row.username !== tgUsername) patch.username = tgUsername;
+    if (tgAvatar && row.avatar_url !== tgAvatar) patch.avatar_url = tgAvatar;
+} else {
+    // Владельца оставляем как есть (снеговик и @Владелец)
+    if (row.username !== '@Владелец') patch.username = '@Владелец';
+    patch.avatar_url = null;
+}
 
         if (Object.keys(patch).length > 0) {
             await _supabase.from('players').update(patch).eq('id', row.id);
