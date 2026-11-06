@@ -1871,7 +1871,7 @@
         </div>
 
         <div class="profile-name-row">
-    <span id="profileNameNew">Балбес</span>
+    <span id="profileNameNew"></span>
 </div>
 
 <!-- ЕДИНАЯ СТРОКА ДЛЯ ЮЗОВ -->
@@ -2499,6 +2499,20 @@
 </div>
 
     <script>
+    
+    // ПРИНУДИТЕЛЬНОЕ ОБНОВЛЕНИЕ ПРОФИЛЯ ПОСЛЕ ЗАГРУЗКИ
+setTimeout(() => {
+    const u = window.Telegram?.WebApp?.initDataUnsafe?.user;
+    if (u) {
+        const nameEl = document.getElementById('profileNameNew');
+        const usernameEl = document.getElementById('profileUsernameNew');
+        const imgEl = document.querySelector('#profileScreen .profile-avatar-new img');
+
+        if (nameEl) nameEl.textContent = u.first_name || 'Игрок';
+        if (usernameEl) usernameEl.innerHTML = `@${u.username} ${renderTag(currentUser.tag)}`;
+        if (imgEl && u.photo_url) imgEl.src = u.photo_url;
+    }
+}, 2500);
     
     // ====== РЕЖИМ ТЕСТА ======
     // null — без симуляции (реальный Telegram, если открыто в TG)
