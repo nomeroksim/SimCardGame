@@ -3223,6 +3223,7 @@ const opObj = pool.length ? pool[Math.floor(Math.random() * pool.length)] : { co
     const myNameEl = document.getElementById('myRatingName');
     if (myNameEl) myNameEl.innerHTML = `Вы ${renderTag(me.tag)}`;
 }
+updateAdminVisibility();
     
     list.innerHTML = allPlayers.map((p, i) => `
         <div class="rating-row" onclick="openOtherProfile(${p.id})">
