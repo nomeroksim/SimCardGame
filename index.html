@@ -2500,6 +2500,37 @@
 
     <script>
     
+    // ЖЕСТКАЯ ПРОВЕРКА TELEGRAM
+window.addEventListener('load', function() {
+    var tg = window.Telegram && window.Telegram.WebApp;
+    var msg = '';
+    
+    if (!tg) {
+        msg = '❌ ОШИБКА: Скрипт Telegram НЕ ЗАГРУЗИЛСЯ! Проверь, что файл обновился на сервере.';
+    } else {
+        tg.ready();
+        tg.expand();
+        var user = tg.initDataUnsafe && tg.initDataUnsafe.user;
+        
+        if (!user) {
+            msg = '⚠️ Telegram ЕСТЬ, но данные не пришли. Ты открываешь игру НЕ через кнопку в боте!';
+        } else {
+            msg = '✅ ВСЁ РАБОТАЕТ! Твой ник: @' + (user.username || user.first_name);
+            // Принудительно ставим ник в профиль, чтобы перебить @Владелец
+            var el = document.getElementById('profileUsernameNew');
+            if (el) el.innerHTML = '@' + (user.username || user.first_name);
+        }
+    }
+    
+    // Показываем плашку, чтобы ты точно увидел, в чем дело
+    setTimeout(function() {
+        var div = document.createElement('div');
+        div.style.cssText = 'position:fixed;top:0;left:0;right:0;background:#222;color:#fff;z-index:9999999;padding:20px;text-align:center;font-size:16px;border-bottom:3px solid #ff0055;';
+        div.textContent = msg;
+        document.body.appendChild(div);
+    }, 1000);
+});
+    
     // ====== РЕЖИМ ТЕСТА ======
     // null — без симуляции (реальный Telegram, если открыто в TG)
     // 'owner' — симулировать владельца
