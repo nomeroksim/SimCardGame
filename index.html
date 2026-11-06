@@ -5718,6 +5718,7 @@ if (!row) {
         const { data: created, error } = await _supabase.from('players').insert([insertData]).select().single();
         if (error) { console.error('insert player error:', error); return; }
         row = created;
+        me.isMe = true; 
     } else {
         // 3. Если нашли — обновляем данные
         const patch = {};
