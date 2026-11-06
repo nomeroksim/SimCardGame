@@ -1754,7 +1754,7 @@
         <div class="my-rating-position" id="myPosition">
             <div class="my-rating-place" id="myPlace">1</div>
             <div class="my-rating-avatar"><i class="fa-solid fa-crown"></i></div>
-            <div class="my-rating-name">Вы <span class="user-tag tag-owner">Владелец</span></div>
+            <div class="my-rating-name" id="myRatingName">Вы</div>
             <div class="my-rating-value" id="myValue">0 ₽</div>
         </div>
         <div class="rating-list" id="ratingList"></div>
@@ -2500,35 +2500,6 @@
 
     <script>
     
-    // ЖЕСТКИЙ ПЕРЕХВАТ ПРОФИЛЯ
-window.addEventListener('load', () => {
-    setTimeout(() => {
-        const tg = window.Telegram?.WebApp;
-        if (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) {
-            const u = tg.initDataUnsafe.user;
-            
-            // Меняем имя
-            const nameEl = document.getElementById('profileNameNew');
-            if (nameEl) nameEl.textContent = u.first_name || 'Игрок';
-
-            // Меняем ник
-            const usernameEl = document.getElementById('profileUsernameNew');
-            if (usernameEl) {
-                usernameEl.innerHTML = `@${u.username || 'игрок'} <span class="user-tag tag-owner">Владелец</span>`;
-            }
-
-            // Меняем аву
-            const imgEl = document.querySelector('#profileScreen .profile-avatar-new img');
-            if (imgEl && u.photo_url) {
-                imgEl.src = u.photo_url;
-            }
-
-            // Убираем "Балбес" из ID, если он там захардкожен
-            const metaId = document.querySelector('.profile-meta-row span');
-            if (metaId) metaId.innerHTML = `<i class="fa-solid fa-hashtag"></i> ID: ${u.id}`;
-        }
-    }, 1000); // Ждем 1 секунду, чтобы игра загрузилась
-});
     
     // ====== РЕЖИМ ТЕСТА ======
     // null — без симуляции (реальный Telegram, если открыто в TG)
@@ -3246,9 +3217,12 @@ const opObj = pool.length ? pool[Math.floor(Math.random() * pool.length)] : { co
     const meIndex = allPlayers.findIndex(p => p.isMe);
     
     if (meIndex >= 0) {
-        document.getElementById('myPlace').textContent = meIndex + 1;
-        document.getElementById('myValue').textContent = formatRatingValue(allPlayers[meIndex].balance) + ' ₽';
-    }
+    const me = allPlayers[meIndex];
+    document.getElementById('myPlace').textContent = meIndex + 1;
+    document.getElementById('myValue').textContent = formatRatingValue(me.balance) + ' ₽';
+    const myNameEl = document.getElementById('myRatingName');
+    if (myNameEl) myNameEl.innerHTML = `Вы ${renderTag(me.tag)}`;
+}
     
     list.innerHTML = allPlayers.map((p, i) => `
         <div class="rating-row" onclick="openOtherProfile(${p.id})">
@@ -3764,8 +3738,7 @@ if (foundRow) {
             resultEl.classList.add('visible');
         }
 
-        function openPromo() { closeMenu(); setTimeout(() => document.getElementById('promoScreen').classList.add('active'), 300); }
-        function closePromo() { document.getElementById('promoScreen').classList.remove('active'); }
+        
         
         async function activatePromo() {
     const input = document.getElementById('promoInput').value.trim().toUpperCase();
@@ -4401,12 +4374,14 @@ const results = [];
         }
     }
 
-    // ЖЕСТКАЯ УСТАНОВКА НИКА И ТЕГА ПРИ КАЖДОМ ОБНОВЛЕНИИ
-    const usernameEl = document.getElementById('profileUsernameNew');
-    if (usernameEl && currentUser.name) {
-        // Если мы знаем твой ник, всегда его и показываем
-        usernameEl.innerHTML = `${currentUser.name} ${renderTag(currentUser.tag)}`;
+    // Ник и тег
+const usernameEl = document.getElementById('profileUsernameNew');
+if (usernameEl) {
+    const me = allPlayers.find(p => p.isMe);
+    if (me) {
+        usernameEl.innerHTML = `${me.username || '@игрок'} ${renderTag(me.tag)}`;
     }
+}
 
     // === 2. ВЫВОД ОСТАЛЬНЫХ ЮЗОВ В ТУ ЖЕ СТРОКУ ===
     const uzBlock = document.getElementById('profileUzBlock');
@@ -5715,86 +5690,67 @@ function updateUzChartButton() {
 }
 
 async function initPlayerInDB() {
-    const me = allPlayers.find(p => p.isMe);
-    if (!me) return;
+    // 1. Грузим всех игроков из базы
+    const { data: players, error: playersErr } = await _supabase
+        .from('players')
+        .select('*');
+    if (playersErr) { console.error('load players:', playersErr); return; }
 
-    // === Данные из Telegram ===
-    const tgId = tgUser?.id || null;
-    const tgUsername = tgUser?.username ? '@' + tgUser.username : null;
-    const tgAvatar = getTelegramAvatar();
+    const myTgId = tgUser?.id || null;
+
+    allPlayers = (players || []).map(p => ({
+        ...p,
+        isMe: myTgId ? Number(p.telegram_id) === Number(myTgId) : false
+    }));
+
+    // 2. Ищем себя
+    let me = allPlayers.find(p => p.isMe);
+
+    const tgUsername  = tgUser?.username ? '@' + tgUser.username : null;
+    const tgAvatar    = getTelegramAvatar();
     const tgFirstName = tgUser?.first_name || null;
 
-    // 1. Ищем игрока по telegram_id (приоритет)
-    let row = null;
-    if (tgId) {
-        const { data } = await _supabase.from('players').select('*').eq('telegram_id', tgId).maybeSingle();
-        row = data;
+    // 3. Если меня нет — создаём БЕЗ тега owner
+    if (!me && myTgId) {
+        const { data: created, error } = await _supabase
+            .from('players')
+            .insert([{
+                username: tgUsername || '@игрок',
+                name: tgFirstName || 'Игрок',
+                balance: 0,
+                tag: null,
+                user_crystals: 0,
+                telegram_id: myTgId,
+                avatar_url: tgAvatar
+            }])
+            .select()
+            .single();
+
+        if (error) { console.error('insert player:', error); return; }
+
+        me = { ...created, isMe: true };
+        allPlayers.push(me);
     }
 
-    // 2. Если не нашли — создаём нового
-if (!row) {
-    const insertData = {
-        username: tgUsername || 'Игрок',
-        name: tgFirstName || 'Без имени',
-        balance: balance,
-        tag: null, // Теперь все новые игроки заходят без тега
-        user_crystals: 1500,
-        telegram_id: tgId,
-        avatar_url: tgAvatar
-    };
-
-        const { data: created, error } = await _supabase.from('players').insert([insertData]).select().single();
-        if (error) { console.error('insert player error:', error); return; }
-        row = created;
-        me.isMe = true; 
-    } else {
-        // 3. Если нашли — обновляем данные
-        const patch = {};
-        if (tgId && row.telegram_id !== tgId) patch.telegram_id = tgId;
-        
-        // Всегда подтягиваем реальный ник и фото из Telegram
-        if (tgUsername && row.username !== tgUsername) patch.username = tgUsername;
-        if (tgAvatar && row.avatar_url !== tgAvatar) patch.avatar_url = tgAvatar;
-
-        if (Object.keys(patch).length > 0) {
-            await _supabase.from('players').update(patch).eq('id', row.id);
-            Object.assign(row, patch);
-        }
+    if (!me) {
+        console.warn('Нет Telegram user — анонимный режим');
+        return;
     }
 
-    if (!row) return;
+    // 4. Синхронизация локального состояния
+    balance      = Number(me.balance) || 0;
+    userCrystals = Number(me.user_crystals) || 0;
+    currentUser.name = me.name || 'Игрок';
+    currentUser.tag  = me.tag || null;
+    mainUsername   = me.main_uz || null;
+    secondUsername = me.second_uz || null;
 
-    // 4. Записываем локально
-me.id = row.id;
-// Берем данные из Telegram, если они есть, иначе из базы
-me.username = tgUsername || row.username || '@игрок'; 
-me.avatarUrl = tgAvatar || row.avatar_url || null;
-balance = row.balance ?? 0;
-userCrystals = row.user_crystals ?? 0;
-currentUser.tag = row.tag || null;
-currentUser.name = tgFirstName || row.name || 'Игрок';
-mainUsername = row.main_uz || null;
-secondUsername = row.second_uz || null;
-
-// ПРИНУДИТЕЛЬНО СТАВИМ АВУ И НИК
-const img = document.querySelector('#profileScreen .profile-avatar-new img');
-if (img) {
-    img.src = tgAvatar || 'https://i.pravatar.cc/150?img=11';
-}
-const nameEl = document.getElementById('profileNameNew');
-if (nameEl) {
-    nameEl.textContent = currentUser.name;
-}
-const usernameEl = document.getElementById('profileUsernameNew');
-if (usernameEl) {
-    usernameEl.innerHTML = `${me.username} ${renderTag(row.tag)}`;
-}
-
+    // 5. Обновляем UI
     updateBalance();
     updateAdminVisibility();
     updateProfileUI();
 
-    // 5. Загружаем остальное
+    // 6. Подтягиваем данные игрока
     await loadNumbersFromDB();
     await loadUsernamesFromDB();
     await loadPromoCodesFromDB();
@@ -5910,14 +5866,11 @@ async function loadMarketLotsFromDB() {
     }));
 }
         // ====== ИНИЦИАЛИЗАЦИЯ ======
-        initTelegram();
-        initPlayerInDB();
-updateBalance();
-    // ЖЕСТКАЯ ОЧИСТКА ПРИ СТАРТЕ
-setTimeout(() => {
-    const marketGrid = document.getElementById('marketGrid');
-    if (marketGrid) marketGrid.innerHTML = '';
-}, 100);
+(async function boot() {
+    initTelegram();              // ставит tgUser (синхронно)
+    await initPlayerInDB();      // грузит игроков, себя, номера, юзы, лоты
+
+    updateBalance();
     updateCollection();
     updateProfileUI();
     renderMiniCards();
@@ -5927,7 +5880,13 @@ setTimeout(() => {
     renderChancesScreen();
     startLuckTimer();
     loadUsernamesFromStorage();
-startPriceUpdater();
+    startPriceUpdater();
+
+    setTimeout(() => {
+        const marketGrid = document.getElementById('marketGrid');
+        if (marketGrid) marketGrid.innerHTML = '';
+    }, 100);
+})();
 
 // Принудительная привязка кнопки "Назад" в профиле другого игрока
 window.addEventListener('DOMContentLoaded', () => {
@@ -5941,73 +5900,6 @@ window.addEventListener('DOMContentLoaded', () => {
         };
     }
 });
-// ====== ЖЕСТКАЯ ПЕРЕЗАПИСЬ ПРОФИЛЯ ======
-async function initPlayerInDB() {
-    const tg = window.Telegram?.WebApp;
-    if (!tg || !tg.initDataUnsafe || !tg.initDataUnsafe.user) {
-        console.error("Нет данных от Telegram");
-        return;
-    }
-
-    const u = tg.initDataUnsafe.user;
-    const tgId = u.id;
-    const tgUsername = u.username ? '@' + u.username : '@игрок';
-    const tgFirstName = u.first_name || 'Игрок';
-    const tgAvatar = u.photo_url || null;
-
-    // 1. Ищем игрока в базе по Telegram ID
-    let { data: player } = await _supabase.from('players').select('*').eq('telegram_id', tgId).maybeSingle();
-
-    // 2. Если игрока нет — создаем нового (с балансом 0 или 500, на твой вкус)
-    if (!player) {
-        const { data: newPlayer, error } = await _supabase.from('players').insert([{
-            username: tgUsername,
-            name: tgFirstName,
-            balance: 47367, // Стартовый баланс
-            tag: 'owner',   // Даем права владельца
-            telegram_id: tgId,
-            avatar_url: tgAvatar
-        }]).select().single();
-        
-        if (error) { alert("Ошибка при создании: " + error.message); return; }
-        player = newPlayer;
-    } else {
-        // 3. Если игрок есть — обновляем ему ник и аву из ТГ (на случай если он их сменил)
-        await _supabase.from('players').update({
-            username: tgUsername,
-            avatar_url: tgAvatar
-        }).eq('id', player.id);
-    }
-
-    // 4. Записываем данные в локальную память игры
-    currentUser.id = player.id;
-    currentUser.username = player.username;
-    currentUser.tag = player.tag;
-    currentUser.name = player.name;
-    balance = player.balance;
-
-    // 5. Принудительно ставим всё в профиль (HTML)
-    const nameEl = document.getElementById('profileNameNew');
-    const usernameEl = document.getElementById('profileUsernameNew');
-    const imgEl = document.querySelector('#profileScreen .profile-avatar-new img');
-    const balanceEl = document.getElementById('profileBalance');
-
-    if (nameEl) nameEl.textContent = player.name;
-    if (usernameEl) usernameEl.innerHTML = `${player.username} ${renderTag(player.tag)}`;
-    if (imgEl) imgEl.src = player.avatar_url || 'https://i.pravatar.cc/150?img=11';
-    if (balanceEl) balanceEl.textContent = balance.toLocaleString('ru-RU') + ' ₽';
-    
-    // Обновляем главный экран (баланс)
-    updateBalance();
-    updateProfileUI();
-    
-    // Загружаем остальное (номера, юзы)
-    await loadNumbersFromDB();
-    await loadUsernamesFromDB();
-    await loadMarketLotsFromDB();
-    updateCollection();
-    renderMiniCards();
-}
 
 </script>
 
