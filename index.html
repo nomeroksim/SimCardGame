@@ -5695,35 +5695,33 @@ function updateUzChartButton() {
 }
 
 async function initPlayerInDB() {
-    // 1. Грузим всех игроков из базы
-    const { data: players, error: playersErr } = await _supabase
-        .from('players')
-        .select('*');
-    if (playersErr) { console.error('load players:', playersErr); return; }
-
     const myTgId = tgUser?.id || null;
+
+    // 1. Грузим всех игроков
+    const { data: players, error: playersErr } = await _supabase.from('players').select('*');
+    if (playersErr) { console.error('load players:', playersErr); return; }
 
     allPlayers = (players || []).map(p => ({
         ...p,
         isMe: myTgId ? Number(p.telegram_id) === Number(myTgId) : false
     }));
 
-    // 2. Ищем себя
     let me = allPlayers.find(p => p.isMe);
 
     const tgUsername  = tgUser?.username ? '@' + tgUser.username : null;
     const tgAvatar    = getTelegramAvatar();
     const tgFirstName = tgUser?.first_name || null;
 
-    // 3. Если меня нет — создаём БЕЗ тега owner
+    // 2. Если меня нет — создаём
     if (!me && myTgId) {
+        const isOwner = Number(myTgId) === 827919681;
         const { data: created, error } = await _supabase
             .from('players')
             .insert([{
                 username: tgUsername || '@игрок',
                 name: tgFirstName || 'Игрок',
                 balance: 0,
-                tag: 'owner',
+                tag: isOwner ? 'owner' : null,
                 user_crystals: 0,
                 telegram_id: myTgId,
                 avatar_url: tgAvatar
@@ -5731,11 +5729,10 @@ async function initPlayerInDB() {
             .select()
             .single();
 
-        if (error) { 
-    alert("Ошибка базы: " + error.message); 
-    console.error('insert player:', error); 
-    return; 
-}
+        if (error) {
+            alert('Ошибка базы: ' + error.message);
+            return;
+        }
 
         me = { ...created, isMe: true };
         allPlayers.push(me);
@@ -5746,7 +5743,7 @@ async function initPlayerInDB() {
         return;
     }
 
-    // 4. Синхронизация локального состояния
+    // 3. Синхронизация
     balance      = Number(me.balance) || 0;
     userCrystals = Number(me.user_crystals) || 0;
     currentUser.name = me.name || 'Игрок';
@@ -5754,12 +5751,12 @@ async function initPlayerInDB() {
     mainUsername   = me.main_uz || null;
     secondUsername = me.second_uz || null;
 
-    // 5. Обновляем UI
+    // 4. UI
     updateBalance();
     updateAdminVisibility();
     updateProfileUI();
 
-    // 6. Подтягиваем данные игрока
+    // 5. Данные игрока
     await loadNumbersFromDB();
     await loadUsernamesFromDB();
     await loadPromoCodesFromDB();
@@ -5876,8 +5873,13 @@ async function loadMarketLotsFromDB() {
 }
         // ====== ИНИЦИАЛИЗАЦИЯ ======
 (async function boot() {
-    initTelegram();              // ставит tgUser (синхронно)
-    await initPlayerInDB();      // грузит игроков, себя, номера, юзы, лоты
+    initTelegram();
+
+    try {
+        await initPlayerInDB();
+    } catch (e) {
+        console.error('initPlayerInDB failed:', e);
+    }
 
     updateBalance();
     updateCollection();
