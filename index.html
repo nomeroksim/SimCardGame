@@ -2526,24 +2526,39 @@
     let tgUser = null;
 
     function initTelegram() {
-        if (TEST_MODE === 'player') {
-            tgUser = TEST_TG_USER;
-            console.log('🧪 TEST_MODE=player, симулируем игрока:', tgUser);
-            return;
-        }
-        if (TEST_MODE === 'owner') {
-            tgUser = null;
-            console.log('🧪 TEST_MODE=owner, без Telegram-данных');
-            return;
-        }
-        if (!tg) return;
-        tg.ready();
-        tg.expand();
+    if (TEST_MODE === 'player') {
+        tgUser = TEST_TG_USER;
+        console.log('🧪 TEST_MODE=player:', tgUser);
+        return;
+    }
+    if (TEST_MODE === 'owner') {
+        tgUser = null;
+        return;
+    }
+    if (!tg) return;
+    
+    tg.ready();
+    tg.expand();
+    
+    // Пытаемся взять юзера из initDataUnsafe
+    if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
+        tgUser = tg.initDataUnsafe.user;
+        console.log('✅ Telegram user (sync):', tgUser);
+        return;
+    }
+
+    // Если данных нет — ЖДЁМ, когда Telegram их пришлёт
+    console.log('⏳ Ждём данные от Telegram...');
+    tg.onEvent('viewportChanged', function onViewport() {
         if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
             tgUser = tg.initDataUnsafe.user;
-            console.log('Telegram user:', tgUser);
+            console.log('✅ Telegram user (async):', tgUser);
+            tg.offEvent('viewportChanged', onViewport);
+            updateAdminVisibility();
+            if (allPlayers.length > 0) initPlayerInDB();
         }
-    }
+    });
+}
 
     function getTelegramAvatar() {
         if (!tgUser || !tgUser.id) return null;
@@ -5874,7 +5889,6 @@ async function loadMarketLotsFromDB() {
         // ====== ИНИЦИАЛИЗАЦИЯ ======
 (async function boot() {
     initTelegram();
-
     try {
         await initPlayerInDB();
     } catch (e) {
@@ -5897,6 +5911,22 @@ async function loadMarketLotsFromDB() {
         const marketGrid = document.getElementById('marketGrid');
         if (marketGrid) marketGrid.innerHTML = '';
     }, 100);
+
+    // 🔥 ГЛАВНАЯ ПРАВКА: каждые 500мс перепроверяем, пришли ли данные от Telegram
+    let attempts = 0;
+    const adminWatcher = setInterval(() => {
+        attempts++;
+        // Обновляем tgUser, если Telegram наконец-то прислал данные
+        if ((!tgUser || !tgUser.id) && tg && tg.initDataUnsafe && tg.initDataUnsafe.user) {
+            tgUser = tg.initDataUnsafe.user;
+            console.log('✅ Telegram user получен с задержкой:', tgUser);
+        }
+        // Показываем/прячем админку по актуальному tgUser
+        updateAdminVisibility();
+
+        // Через 30 секунд прекращаем проверку
+        if (attempts >= 60) clearInterval(adminWatcher);
+    }, 500);
 })();
 
 // Принудительная привязка кнопки "Назад" в профиле другого игрока
