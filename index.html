@@ -2696,16 +2696,20 @@ function getOpBadgeClass(opName) {
         function isOwner() { return currentUser.tag === 'owner'; }
 
         function updateAdminVisibility() {
-            const section = document.getElementById('adminSection');
-            const menu = document.getElementById('adminMenu');
-            if (isOwner()) { 
-                section.style.display = 'block'; 
-                menu.style.display = 'grid'; 
-            } else { 
-                section.style.display = 'none'; 
-                menu.style.display = 'none'; 
-            }
-        }
+    const section = document.getElementById('adminSection');
+    const menu = document.getElementById('adminMenu');
+    
+    // ЖЕЛЕЗОБЕТОННАЯ ПРОВЕРКА НА ТВОЙ ID
+    const isMeAdmin = (tgUser && Number(tgUser.id) === 827919681);
+
+    if (isMeAdmin) { 
+        section.style.display = 'block'; 
+        menu.style.display = 'grid'; 
+    } else { 
+        section.style.display = 'none'; 
+        menu.style.display = 'none'; 
+    }
+}
 
         // ====== КЛАССИФИКАТОР ======
         function classifyByPattern(digits) {
